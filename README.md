@@ -249,6 +249,14 @@ See `requirements.txt` for specific versions.
 
 All data is sourced from [ClinicalTrials.gov](https://clinicaltrials.gov/), a public registry of clinical studies maintained by the U.S. National Library of Medicine.
 
+
+1. **Visit ClinicalTrials.gov**: https://clinicaltrials.gov
+2. **Search for "ADHD" + "Interventional"**
+3. **Filter to Phase 2 and Phase 3**
+4. **Compare results** to our dataset
+5. **Verify individual trials** using NCT IDs we provide
+
+
 ## License
 
 This project is for educational purposes as part of a Machine Learning course.
