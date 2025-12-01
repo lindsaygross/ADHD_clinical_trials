@@ -1,379 +1,229 @@
 """
 Test and validate the ADHD clinical trials prediction model.
 
-This script provides various ways to test model accuracy and robustness:
-1. Cross-validation for robust performance estimates
-2. Baseline comparison
-3. Individual trial predictions
-4. Error analysis
-5. What-if scenario testing
+Strategy since the dataset is small:
+1. Uses Leave-One-Out Cross-Validation (LOOCV) instead of K-Fold.
+   - Essential for N=36. We train on 35, test on 1, repeat 36 times.
+2. Implements Manual Random Oversampling.
+   - Inside every training fold, we duplicate the minority class (failures)
+     until they equal the majority class. This forces the model to learn them.
+3. Uses Balanced Accuracy.
+   - Standard accuracy is misleading. Balanced Accuracy is the average of
+     Sensitivity (Success accuracy) and Specificity (Failure accuracy).
 """
 
 import pandas as pd
 import numpy as np
-from sklearn.model_selection import cross_val_score, StratifiedKFold
+from sklearn.model_selection import LeaveOneOut
 from sklearn.preprocessing import StandardScaler
 from sklearn.linear_model import LogisticRegression
-from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
-from sklearn.metrics import classification_report, confusion_matrix
-import matplotlib.pyplot as plt
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.metrics import accuracy_score, confusion_matrix, balanced_accuracy_score
+from sklearn.utils import resample
+import warnings
 
+# Suppress sklearn warnings
+warnings.filterwarnings("ignore", category=UserWarning, module="sklearn")
 
 def load_data():
     """Load processed data."""
-    df = pd.read_csv('data/processed/adhd_trials_labeled.csv')
+    path = 'data/processed/adhd_trials_labeled.csv'
+    if not pd.io.common.file_exists(path):
+        print(f"Error: {path} not found. Please run prepare_data.py first.")
+        return None, None, None, None
+
+    df = pd.read_csv(path)
 
     metadata_cols = ['NCTId', 'Label', 'OverallStatus', 'BriefTitle']
     feature_cols = [col for col in df.columns if col not in metadata_cols]
 
-    X = df[feature_cols].values
+    X = df[feature_cols]
     y = df['Label'].values
 
     return df, X, y, feature_cols
 
-
-def test_cross_validation():
+def oversample_minority(X_train, y_train):
     """
-    Perform k-fold cross-validation for robust accuracy estimation.
+    Manually oversample the minority class to match majority count.
+    This is critical for datasets where minority N < 5.
+    """
+    # Combine for resampling
+    train_data = X_train.copy()
+    train_data['TARGET'] = y_train
 
-    This gives a better estimate of model performance than a single train/test split.
+    # Separate classes
+    count_class_0, count_class_1 = train_data.TARGET.value_counts().sort_index()
+
+    df_class_0 = train_data[train_data.TARGET == 0]
+    df_class_1 = train_data[train_data.TARGET == 1]
+
+    # Determine which is minority
+    if len(df_class_0) < len(df_class_1):
+        # Class 0 (Failure) is minority
+        df_minority = df_class_0
+        df_majority = df_class_1
+        n_samples = len(df_class_1)
+    else:
+        # Class 1 (Success) is minority (unlikely here)
+        df_minority = df_class_1
+        df_majority = df_class_0
+        n_samples = len(df_class_0)
+
+    # Upsample minority
+    df_minority_upsampled = resample(
+        df_minority,
+        replace=True,     # Sample with replacement
+        n_samples=n_samples, # Match majority class
+        random_state=42
+    )
+
+    # Combine back
+    df_upsampled = pd.concat([df_majority, df_minority_upsampled])
+
+    # Split back into X and y
+    y_upsampled = df_upsampled.TARGET.values
+    X_upsampled = df_upsampled.drop('TARGET', axis=1)
+
+    return X_upsampled, y_upsampled
+
+def test_loocv_with_oversampling():
+    """
+    Perform Leave-One-Out Cross-Validation with Oversampling.
     """
     print("="*70)
-    print("1. CROSS-VALIDATION TEST")
+    print("1. LEAVE-ONE-OUT CROSS-VALIDATION (With Oversampling)")
     print("="*70)
-    print("\nThis tests how well the model generalizes to unseen data")
-    print("by training and testing on different subsets of the data.\n")
+    print("Strategy: Train on 35, Test on 1. Repeat 36 times.")
+    print("Correction: Inside every training loop, we duplicate the Failures")
+    print("            so the model sees 50/50 Success/Failure.\n")
 
     df, X, y, feature_cols = load_data()
+    if df is None: return
 
-    # Standardize features
     scaler = StandardScaler()
-    X_scaled = scaler.fit_transform(X)
+    X_scaled = pd.DataFrame(scaler.fit_transform(X), columns=X.columns)
 
-    # Models to test
+    # Models
+    # Note: High regularization (C=0.1) for LogReg helps with small data
     models = {
-        'Logistic Regression': LogisticRegression(random_state=42, max_iter=1000, class_weight='balanced'),
-        'Random Forest': RandomForestClassifier(n_estimators=100, random_state=42, class_weight='balanced'),
-        'Gradient Boosting': GradientBoostingClassifier(n_estimators=100, random_state=42)
+        'Logistic Regression': LogisticRegression(random_state=42, C=0.5, solver='liblinear'),
+        'Random Forest': RandomForestClassifier(n_estimators=100, random_state=42, max_depth=5)
     }
 
-    # 5-fold cross-validation (or fewer if dataset is small)
-    n_splits = min(5, len(y) // 2)
-    cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=42)
+    loo = LeaveOneOut()
 
-    print(f"Using {n_splits}-fold cross-validation")
-    print(f"Dataset size: {len(y)} samples\n")
-
-    results = {}
+    best_model_name = ""
+    best_balanced_acc = -1
 
     for name, model in models.items():
-        print(f"\nTesting {name}...")
+        print(f"Testing {name}...")
 
-        # Cross-validation scores
-        scores = cross_val_score(model, X_scaled, y, cv=cv, scoring='accuracy')
+        y_true_all = []
+        y_pred_all = []
 
-        results[name] = {
-            'mean_accuracy': scores.mean(),
-            'std_accuracy': scores.std(),
-            'scores': scores
-        }
+        # Manual LOOCV Loop
+        for train_index, test_index in loo.split(X_scaled):
+            X_train, X_test = X_scaled.iloc[train_index], X_scaled.iloc[test_index]
+            y_train, y_test = y[train_index], y[test_index]
 
-        print(f"  Accuracy: {scores.mean():.3f} (+/- {scores.std():.3f})")
-        print(f"  Individual folds: {[f'{s:.3f}' for s in scores]}")
+            # --- CRITICAL STEP: OVERSAMPLE TRAINING DATA ---
+            # We only touch training data. Test data remains pure.
+            X_train_res, y_train_res = oversample_minority(X_train, y_train)
 
-    # Find best model
-    best_model = max(results.items(), key=lambda x: x[1]['mean_accuracy'])
+            # Train
+            model.fit(X_train_res, y_train_res)
 
-    print("\n" + "-"*70)
-    print(f"BEST MODEL: {best_model[0]}")
-    print(f"Mean Accuracy: {best_model[1]['mean_accuracy']:.3f} (+/- {best_model[1]['std_accuracy']:.3f})")
-    print("-"*70)
+            # Predict
+            pred = model.predict(X_test)[0]
 
-    return results
+            y_true_all.append(y_test[0])
+            y_pred_all.append(pred)
 
+        # Calculate Metrics on the aggregated predictions
+        acc = accuracy_score(y_true_all, y_pred_all)
+        bal_acc = balanced_accuracy_score(y_true_all, y_pred_all)
+        cm = confusion_matrix(y_true_all, y_pred_all)
 
-def test_baseline_comparison():
+        print(f"  Raw Accuracy:      {acc:.1%}")
+        print(f"  Balanced Accuracy: {bal_acc:.1%}")
+        try:
+            tn, fp, fn, tp = cm.ravel()
+            print(f"  Confusion Matrix:  [TN={tn}, FP={fp}] (Failures)")
+            print(f"                     [FN={fn}, TP={tp}] (Successes)")
+
+            # Check if we caught any failures
+            if tn > 0:
+                print(f"  >> SUCCESS: Model identified {tn} failures correctly!")
+            else:
+                print(f"  >> WARNING: Model still missed all failures.")
+
+        except:
+            print(f"  Confusion Matrix: \n{cm}")
+
+        if bal_acc > best_balanced_acc:
+            best_balanced_acc = bal_acc
+            best_model_name = name
+        print("-" * 30)
+
+    print(f"\nBEST MODEL: {best_model_name} (Balanced Acc: {best_balanced_acc:.1%})")
+    return best_model_name
+
+def analyze_feature_importance_on_failures():
     """
-    Compare model performance to baseline strategies.
-
-    This shows if the model is actually learning or just predicting the majority class.
-    """
-    print("\n" + "="*70)
-    print("2. BASELINE COMPARISON TEST")
-    print("="*70)
-    print("\nComparing model to simple baseline strategies:\n")
-
-    df, X, y, feature_cols = load_data()
-
-    # Calculate baseline accuracies
-    majority_class = 1 if (y == 1).sum() > (y == 0).sum() else 0
-    majority_baseline = (y == majority_class).mean()
-
-    random_baseline = max((y == 1).mean(), (y == 0).mean())
-
-    print(f"1. Majority Class Baseline (always predict most common class)")
-    print(f"   Accuracy: {majority_baseline:.3f}")
-    print(f"   Strategy: Always predict {'Success' if majority_class == 1 else 'Failure'}")
-
-    print(f"\n2. Random Baseline (random guessing)")
-    print(f"   Expected Accuracy: ~{random_baseline:.3f}")
-    print(f"   Strategy: Random predictions")
-
-    # Load actual model performance
-    model_perf = pd.read_csv('data/processed/model_performance.csv', index_col=0)
-    best_test_acc = model_perf['test_accuracy'].max()
-    best_model = model_perf['test_accuracy'].idxmax()
-
-    print(f"\n3. Best ML Model ({best_model})")
-    print(f"   Test Accuracy: {best_test_acc:.3f}")
-
-    # Calculate improvement
-    improvement = ((best_test_acc - majority_baseline) / majority_baseline) * 100
-
-    print("\n" + "-"*70)
-    if best_test_acc > majority_baseline:
-        print(f" Model BEATS baseline by {improvement:.1f}%")
-    else:
-        print(f"  Model performs similar to baseline")
-    print("-"*70)
-
-
-def predict_individual_trial(nct_id=None):
-    """
-    Make predictions for individual trials.
-
-    This shows how the model would predict specific trials.
+    Since we only have 3 failures, let's look at them directly
+    compared to the average success.
     """
     print("\n" + "="*70)
-    print("3. INDIVIDUAL TRIAL PREDICTION TEST")
+    print("2. FORENSIC ANALYSIS: WHY DID THEY FAIL?")
     print("="*70)
 
     df, X, y, feature_cols = load_data()
+    if df is None: return
 
-    # Train model on all data (for demonstration)
-    scaler = StandardScaler()
-    X_scaled = scaler.fit_transform(X)
+    failures = df[df['Label'] == 0]
+    successes = df[df['Label'] == 1]
 
-    model = LogisticRegression(random_state=42, max_iter=1000, class_weight='balanced')
-    model.fit(X_scaled, y)
+    print(f"Analyzing {len(failures)} Failures vs {len(successes)} Successes.\n")
 
-    # Get predictions and probabilities
-    predictions = model.predict(X_scaled)
-    probabilities = model.predict_proba(X_scaled)[:, 1]
+    # 1. Compare Means
+    mean_diff = failures[feature_cols].mean() - successes[feature_cols].mean()
 
-    df['Predicted'] = predictions
-    df['Probability_Success'] = probabilities
-    df['Correct'] = (predictions == y)
+    # Sort by biggest differences
+    print("Top features distinguishing Failures from Successes:")
+    print("(Positive value = Higher in Failures, Negative = Higher in Successes)\n")
 
-    if nct_id:
-        # Predict specific trial
-        trial = df[df['NCTId'] == nct_id].iloc[0]
-        print(f"\nPrediction for {nct_id}:")
-        print(f"Title: {trial['BriefTitle'][:60]}...")
-        print(f"Actual Status: {trial['OverallStatus']}")
-        print(f"Predicted: {'Success' if trial['Predicted'] == 1 else 'Failure'}")
-        print(f"Probability of Success: {trial['Probability_Success']:.1%}")
-        print(f"Correct: {' Yes' if trial['Correct'] else ' No'}")
-    else:
-        # Show a few examples
-        print("\nSample predictions:\n")
+    sorted_diff = mean_diff.abs().sort_values(ascending=False).head(10)
 
-        # Show some correct predictions
-        print("CORRECT PREDICTIONS:")
-        correct = df[df['Correct'] == True].head(3)
-        for idx, trial in correct.iterrows():
-            print(f"\n  {trial['NCTId']}: {trial['BriefTitle'][:50]}...")
-            print(f"    Actual: {trial['OverallStatus']}, Predicted: {'Success' if trial['Predicted']==1 else 'Failure'}")
-            print(f"    Confidence: {trial['Probability_Success']:.1%}")
+    for feature in sorted_diff.index:
+        diff = mean_diff[feature]
+        f_val = failures[feature].mean()
+        s_val = successes[feature].mean()
+        print(f"{feature:<25}: Diff {diff:+.2f} (Fail Avg: {f_val:.2f} vs Succ Avg: {s_val:.2f})")
 
-        # Show incorrect predictions if any
-        incorrect = df[df['Correct'] == False]
-        if len(incorrect) > 0:
-            print("\n\nINCORRECT PREDICTIONS:")
-            for idx, trial in incorrect.head(3).iterrows():
-                print(f"\n  {trial['NCTId']}: {trial['BriefTitle'][:50]}...")
-                print(f"    Actual: {trial['OverallStatus']}, Predicted: {'Success' if trial['Predicted']==1 else 'Failure'}")
-                print(f"    Confidence: {trial['Probability_Success']:.1%}")
+    # 2. Look at the specific failure rows
+    print("\n--- The Specific Failed Trials ---")
+    cols_to_show = ['NCTId', 'OverallStatus', 'EnrollmentCount', 'Phase', 'LeadSponsorClass']
 
-    return df
-
-
-def analyze_errors():
-    """
-    Analyze where the model makes mistakes.
-
-    This helps understand model limitations and areas for improvement.
-    """
-    print("\n" + "="*70)
-    print("4. ERROR ANALYSIS")
-    print("="*70)
-
-    df, X, y, feature_cols = load_data()
-
-    # Train model
-    scaler = StandardScaler()
-    X_scaled = scaler.fit_transform(X)
-
-    model = LogisticRegression(random_state=42, max_iter=1000, class_weight='balanced')
-    model.fit(X_scaled, y)
-
-    predictions = model.predict(X_scaled)
-    probabilities = model.predict_proba(X_scaled)[:, 1]
-
-    df['Predicted'] = predictions
-    df['Probability_Success'] = probabilities
-
-    # Analyze errors
-    errors = df[predictions != y]
-    correct = df[predictions == y]
-
-    print(f"\nTotal predictions: {len(df)}")
-    print(f"Correct: {len(correct)} ({len(correct)/len(df)*100:.1f}%)")
-    print(f"Incorrect: {len(errors)} ({len(errors)/len(df)*100:.1f}%)")
-
-    if len(errors) > 0:
-        print(f"\nError breakdown:")
-
-        # False positives
-        false_pos = errors[errors['Label'] == 0]
-        print(f"  False Positives (predicted success, actually failed): {len(false_pos)}")
-
-        # False negatives
-        false_neg = errors[errors['Label'] == 1]
-        print(f"  False Negatives (predicted failure, actually succeeded): {len(false_neg)}")
-
-        print("\nMost uncertain correct predictions (low confidence):")
-        # Successes predicted with low confidence
-        uncertain_success = correct[correct['Label'] == 1].nsmallest(3, 'Probability_Success')
-        for idx, trial in uncertain_success.iterrows():
-            print(f"  {trial['NCTId']}: {trial['Probability_Success']:.1%} confidence")
-            print(f"    Enrollment: {trial['EnrollmentCount']:.0f}")
-
-        if len(false_pos) > 0:
-            print("\nFalse Positives (trials we thought would succeed but failed):")
-            for idx, trial in false_pos.iterrows():
-                print(f"\n  {trial['NCTId']}: {trial['BriefTitle'][:50]}...")
-                print(f"    Predicted Success with {trial['Probability_Success']:.1%} confidence")
-                print(f"    Actually: {trial['OverallStatus']}")
-                print(f"    Enrollment: {trial['EnrollmentCount']:.0f}")
-
-
-def test_what_if_scenarios():
-    """
-    Test what-if scenarios to understand model behavior.
-
-    This shows how changing trial characteristics affects predictions.
-    """
-    print("\n" + "="*70)
-    print("5. WHAT-IF SCENARIO TESTING")
-    print("="*70)
-    print("\nThis shows how trial characteristics affect predicted success:\n")
-
-    df, X, y, feature_cols = load_data()
-
-    # Train model
-    scaler = StandardScaler()
-    X_scaled = scaler.fit_transform(X)
-
-    model = LogisticRegression(random_state=42, max_iter=1000, class_weight='balanced')
-    model.fit(X_scaled, y)
-
-    # Create hypothetical trials
-    scenarios = []
-
-    # Base trial (median values)
-    base_trial = pd.DataFrame([X.mean(axis=0)], columns=feature_cols)
-    base_pred = model.predict_proba(scaler.transform(base_trial))[0, 1]
-
-    print(f"Base trial (average characteristics):")
-    print(f"  Predicted success probability: {base_pred:.1%}\n")
-
-    # Scenario 1: Small vs Large enrollment
-    small_trial = base_trial.copy()
-    small_trial['EnrollmentCount'] = 30
-    small_trial['SmallTrial'] = 1
-    small_trial['LargeTrial'] = 0
-    small_pred = model.predict_proba(scaler.transform(small_trial))[0, 1]
-
-    large_trial = base_trial.copy()
-    large_trial['EnrollmentCount'] = 300
-    large_trial['SmallTrial'] = 0
-    large_trial['LargeTrial'] = 1
-    large_pred = model.predict_proba(scaler.transform(large_trial))[0, 1]
-
-    print("Scenario 1: Effect of enrollment size")
-    print(f"  Small trial (30 participants): {small_pred:.1%} success probability")
-    print(f"  Large trial (300 participants): {large_pred:.1%} success probability")
-    print(f"  Difference: {(large_pred - small_pred)*100:.1f} percentage points\n")
-
-    # Scenario 2: Randomized vs Non-randomized
-    non_rand = base_trial.copy()
-    non_rand['IsRandomized'] = 0
-    non_rand_pred = model.predict_proba(scaler.transform(non_rand))[0, 1]
-
-    rand = base_trial.copy()
-    rand['IsRandomized'] = 1
-    rand_pred = model.predict_proba(scaler.transform(rand))[0, 1]
-
-    print("Scenario 2: Effect of randomization")
-    print(f"  Non-randomized: {non_rand_pred:.1%} success probability")
-    print(f"  Randomized: {rand_pred:.1%} success probability")
-    print(f"  Difference: {(rand_pred - non_rand_pred)*100:.1f} percentage points\n")
-
-    # Scenario 3: Industry vs Academic sponsor
-    academic = base_trial.copy()
-    academic['IsIndustrySponsored'] = 0
-    academic['IsAcademicSponsored'] = 1
-    academic_pred = model.predict_proba(scaler.transform(academic))[0, 1]
-
-    industry = base_trial.copy()
-    industry['IsIndustrySponsored'] = 1
-    industry['IsAcademicSponsored'] = 0
-    industry_pred = model.predict_proba(scaler.transform(industry))[0, 1]
-
-    print("Scenario 3: Effect of sponsor type")
-    print(f"  Academic sponsored: {academic_pred:.1%} success probability")
-    print(f"  Industry sponsored: {industry_pred:.1%} success probability")
-    print(f"  Difference: {(industry_pred - academic_pred)*100:.1f} percentage points")
-
+    # Check if these columns exist in original df or need to be reconstructed from features
+    # Simplification: Just print the ID and Status from the labeled df
+    for idx, row in failures.iterrows():
+        print(f"\nID: {row['NCTId']} ({row['OverallStatus']})")
+        print(f"  Title: {row['BriefTitle'][:60]}...")
+        # Print a few key traits
+        print(f"  Enrollment: {row['EnrollmentCount']}")
 
 def main():
-    """Run all tests."""
+    """Run tests."""
     print("\n" + "="*70)
-    print("ADHD CLINICAL TRIALS MODEL - COMPREHENSIVE TESTING")
+    print("ADHD SMALL DATA VALIDATION")
     print("="*70)
-    print("\nThis script tests the model's accuracy and robustness in multiple ways.\n")
 
-    # Test 1: Cross-validation
-    cv_results = test_cross_validation()
-
-    # Test 2: Baseline comparison
-    test_baseline_comparison()
-
-    # Test 3: Individual predictions
-    predictions_df = predict_individual_trial()
-
-    # Test 4: Error analysis
-    analyze_errors()
-
-    # Test 5: What-if scenarios
-    test_what_if_scenarios()
+    best_model = test_loocv_with_oversampling()
+    analyze_feature_importance_on_failures()
 
     print("\n" + "="*70)
-    print("TESTING COMPLETE")
+    print("ANALYSIS COMPLETE")
     print("="*70)
-    print("\nKey Takeaways:")
-    print("1. Cross-validation gives robust accuracy estimates")
-    print("2. Model beats baseline (majority class predictor)")
-    print("3. Individual trial predictions show model reasoning")
-    print("4. Error analysis reveals where model struggles")
-    print("5. What-if scenarios show feature importance")
-    print("\nNext steps:")
-    print("- Review predictions for individual trials")
-    print("- Examine errors to understand limitations")
-    print("- Test on new trials as they complete")
-    print("="*70)
-
 
 if __name__ == "__main__":
     main()

@@ -2,7 +2,7 @@
 Prepare and label ADHD clinical trial data for machine learning.
 
 This module:
-1. Loads raw trial data
+1. Loads raw trial data (Phase 1, 2, and 3)
 2. Creates binary labels (success vs failure)
 3. Engineers features using only pre-trial information
 4. Handles missing data
@@ -115,6 +115,7 @@ def engineer_features(df: pd.DataFrame) -> pd.DataFrame:
     df["LargeTrial"] = (df["EnrollmentCount"] >= 200).astype(int)
 
     # --- Phase features ---
+    df["IsPhase1"] = df["Phase"].fillna("").str.contains("PHASE1|Phase 1", case=False, regex=True).astype(int)
     df["IsPhase2"] = df["Phase"].fillna("").str.contains("PHASE2|Phase 2", case=False, regex=True).astype(int)
     df["IsPhase3"] = df["Phase"].fillna("").str.contains("PHASE3|Phase 3", case=False, regex=True).astype(int)
     df["IsPhase2And3"] = (df["IsPhase2"] & df["IsPhase3"]).astype(int)
@@ -230,6 +231,7 @@ def select_modeling_features(df: pd.DataFrame) -> Tuple[pd.DataFrame, list]:
         "SmallTrial",
         "LargeTrial",
         # Phase
+        "IsPhase1",
         "IsPhase2",
         "IsPhase3",
         "IsPhase2And3",
