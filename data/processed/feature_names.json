@@ -3,6 +3,7 @@
   "LogEnrollment",
   "SmallTrial",
   "LargeTrial",
+  "IsPhase1",
   "IsPhase2",
   "IsPhase3",
   "IsPhase2And3",

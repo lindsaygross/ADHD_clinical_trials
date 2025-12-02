@@ -1,7 +1,7 @@
 """
 Fetch ADHD clinical trial data from ClinicalTrials.gov API.
 
-This module retrieves interventional Phase 2 and Phase 3 trials related to ADHD
+This module retrieves interventional Phase 1, 2, and 3 trials related to ADHD
 and saves the raw data for further processing.
 """
 
@@ -15,38 +15,6 @@ import pandas as pd
 
 # ClinicalTrials.gov API v2 endpoint
 API_BASE_URL = "https://clinicaltrials.gov/api/v2/studies"
-
-# Fields to retrieve from the API
-FIELDS = [
-    "NCTId",
-    "Condition",
-    "Phase",
-    "OverallStatus",
-    "StudyType",
-    "EnrollmentCount",
-    "StartDate",
-    "InterventionType",
-    "InterventionName",
-    "DesignAllocation",
-    "DesignMasking",
-    "DesignMaskingDescription",
-    "NumberOfArms",
-    "PrimaryOutcomeMeasure",
-    "PrimaryOutcomeDescription",
-    "LeadSponsorName",
-    "LeadSponsorClass",
-    "LocationCountry",
-    "CompletionDate",
-    "BriefTitle",
-    "OfficialTitle",
-    "DesignInterventionModel",
-    "DesignPrimaryPurpose",
-    "MinimumAge",
-    "MaximumAge",
-    "Gender",
-    "HealthyVolunteers",
-]
-
 
 def fetch_adhd_trials(
     max_results: int = 1000,
@@ -238,9 +206,9 @@ def extract_fields_from_trial(trial: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-def filter_phase_2_3_trials(trials_df: pd.DataFrame) -> pd.DataFrame:
+def filter_target_phases(trials_df: pd.DataFrame) -> pd.DataFrame:
     """
-    Filter trials to only include Phase 2 and Phase 3.
+    Filter trials to include Phase 1, Phase 2, and Phase 3.
 
     Parameters
     ----------
@@ -252,16 +220,16 @@ def filter_phase_2_3_trials(trials_df: pd.DataFrame) -> pd.DataFrame:
     pd.DataFrame
         Filtered DataFrame
     """
-    # Filter for Phase 2 or Phase 3
-    # Handle various phase naming conventions
+    # Updated Regex to include Phase 1
+    # This matches: "Phase 1", "Phase 1/Phase 2", "Phase 2", "Phase 2/Phase 3", "Phase 3"
     phase_mask = trials_df["Phase"].fillna("").str.contains(
-        "PHASE2|PHASE3|Phase 2|Phase 3",
+        "PHASE1|PHASE2|PHASE3|Phase 1|Phase 2|Phase 3",
         case=False,
         regex=True
     )
 
     filtered_df = trials_df[phase_mask].copy()
-    print(f"\nFiltered to Phase 2/3 trials: {len(filtered_df)} trials")
+    print(f"\nFiltered to Phase 1/2/3 trials: {len(filtered_df)} trials")
 
     return filtered_df
 
@@ -289,10 +257,11 @@ def save_data(trials: List[Dict[str, Any]], output_dir: str = "data/raw"):
     extracted_trials = [extract_fields_from_trial(trial) for trial in trials]
     df = pd.DataFrame(extracted_trials)
 
-    # Filter to Phase 2/3
-    df_filtered = filter_phase_2_3_trials(df)
+    # Filter to Phases 1, 2, and 3
+    df_filtered = filter_target_phases(df)
 
     # Save full CSV
+    # Renamed output file to reflect new phase inclusion
     csv_path = os.path.join(output_dir, "adhd_trials_raw.csv")
     df_filtered.to_csv(csv_path, index=False, encoding="utf-8")
     print(f"Saved filtered CSV to: {csv_path}")
@@ -301,7 +270,7 @@ def save_data(trials: List[Dict[str, Any]], output_dir: str = "data/raw"):
     print("\n" + "="*60)
     print("DATA SUMMARY")
     print("="*60)
-    print(f"Total trials (Phase 2/3): {len(df_filtered)}")
+    print(f"Total trials (Phase 1/2/3): {len(df_filtered)}")
     print(f"\nStatus distribution:")
     print(df_filtered["OverallStatus"].value_counts())
     print(f"\nPhase distribution:")
@@ -315,7 +284,7 @@ def save_data(trials: List[Dict[str, Any]], output_dir: str = "data/raw"):
 def main():
     """Main execution function."""
     print("="*60)
-    print("ADHD Clinical Trials Data Fetcher")
+    print("ADHD Clinical Trials Data Fetcher (Expanded)")
     print("="*60)
 
     # Fetch trials
