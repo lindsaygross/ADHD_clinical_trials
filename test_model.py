@@ -12,16 +12,16 @@ Strategy since the dataset is small:
      Sensitivity (Success accuracy) and Specificity (Failure accuracy).
 """
 
+import warnings
+
 import pandas as pd
-import numpy as np
+from sklearn.dummy import DummyClassifier
+from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import accuracy_score, confusion_matrix, balanced_accuracy_score
 from sklearn.model_selection import LeaveOneOut
 from sklearn.preprocessing import StandardScaler
-from sklearn.linear_model import LogisticRegression
-from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
-from sklearn.dummy import DummyClassifier
-from sklearn.metrics import accuracy_score, confusion_matrix, balanced_accuracy_score
 from sklearn.utils import resample
-import warnings
 
 # Suppress sklearn warnings
 warnings.filterwarnings("ignore", category=UserWarning, module="sklearn")

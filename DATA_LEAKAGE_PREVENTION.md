@@ -8,22 +8,24 @@
 
 ## Executive Summary
 
-A comprehensive audit was performed to ensure no data leakage in the ADHD clinical trials prediction model. **All checks passed** - only information available at or before trial registration is used for prediction.
+A comprehensive audit was performed to ensure no data leakage in the ADHD clinical trials prediction model. **All checks
+passed** - only information available at or before trial registration is used for prediction.
 
 ### Key Findings
 
- **All 32 features use only pre-trial information**
- **No temporal leakage** (no completion dates, results, or post-trial data)
- **No outcome leakage** (no features derived from trial outcomes)
- **No ongoing trials** in the labeled dataset
- **No suspiciously high correlations** with the outcome (all < 0.8)
- **Proper train/test separation** with no information leakage
+**All 32 features use only pre-trial information**
+**No temporal leakage** (no completion dates, results, or post-trial data)
+**No outcome leakage** (no features derived from trial outcomes)
+**No ongoing trials** in the labeled dataset
+**No suspiciously high correlations** with the outcome (all < 0.8)
+**Proper train/test separation** with no information leakage
 
 ---
 
 ## What is Data Leakage?
 
 **Data leakage** occurs when information from outside the training dataset is used to create the model. This leads to:
+
 - Overly optimistic performance estimates
 - Models that fail in production/real-world use
 - Invalid research conclusions
@@ -31,36 +33,37 @@ A comprehensive audit was performed to ensure no data leakage in the ADHD clinic
 ### Common Types of Leakage in Clinical Trials
 
 1. **Temporal Leakage**: Using information only available after the trial starts
-   - Completion dates
-   - Actual enrollment (vs. planned)
-   - Trial duration
-   - Results or outcomes
+    - Completion dates
+    - Actual enrollment (vs. planned)
+    - Trial duration
+    - Results or outcomes
 
 2. **Outcome Leakage**: Using features derived from the outcome
-   - Reasons for stopping (only known if failed)
-   - Whether results were published
-   - Post-trial updates
+    - Reasons for stopping (only known if failed)
+    - Whether results were published
+    - Post-trial updates
 
 3. **Target Leakage**: Using the target variable itself
-   - Trial status (our label) used as a feature
-   - Proxy variables highly correlated with status
+    - Trial status (our label) used as a feature
+    - Proxy variables highly correlated with status
 
 ---
 
 ## Checks Performed
 
-### 1. Temporal Leakage Check 
+### 1. Temporal Leakage Check
 
 **Objective**: Ensure no features use information only available during or after the trial.
 
 **Forbidden Features Checked:**
--  CompletionDate
--  PrimaryCompletionDate
--  ResultsFirstPostDate
--  LastUpdatePostDate
--  DispFirstPostDate
--  ActualEnrollment
--  ActualDuration
+
+- CompletionDate
+- PrimaryCompletionDate
+- ResultsFirstPostDate
+- LastUpdatePostDate
+- DispFirstPostDate
+- ActualEnrollment
+- ActualDuration
 
 **Result**:  **None of these appear in the processed dataset**
 
@@ -68,51 +71,54 @@ A comprehensive audit was performed to ensure no data leakage in the ADHD clinic
 
 ---
 
-### 2. Outcome Leakage Check 
+### 2. Outcome Leakage Check
 
 **Objective**: Ensure no features are derived from trial outcomes.
 
 **Forbidden Features Checked:**
--  WhyStopped (reason for termination)
--  StudyResults
--  HasResults
--  DispFirstPostDate
--  PrimaryOutcomeTimeFrame (if contains completion info)
+
+- WhyStopped (reason for termination)
+- StudyResults
+- HasResults
+- DispFirstPostDate
+- PrimaryOutcomeTimeFrame (if contains completion info)
 
 **Result**:  **None of these appear in the processed dataset**
 
 ---
 
-### 3. Feature Availability Verification 
+### 3. Feature Availability Verification
 
 **Objective**: Verify all features are available at trial registration on ClinicalTrials.gov.
 
 #### Features Used (32 total)
 
-| Feature Category | Features | Available at Registration? |
-|-----------------|----------|---------------------------|
-| **Enrollment** | EnrollmentCount, LogEnrollment, SmallTrial, LargeTrial |  YES - Planned enrollment |
-| **Phase** | IsPhase2, IsPhase3, IsPhase2And3 |  YES - Declared at registration |
-| **Design** | IsRandomized, IsDoubleBlind, IsBlinded, NumberOfArms, HasMultipleArms, NumArms_2, NumArms_3Plus, IsParallelAssignment, IsCrossover |  YES - Study protocol |
-| **Intervention** | IsDrugIntervention, IsBehavioralIntervention, IsDeviceIntervention, NumInterventions |  YES - Intervention plan |
-| **Sponsor** | IsIndustrySponsored, IsNIHSponsored, IsAcademicSponsored |  YES - Known at registration |
-| **Geography** | NumCountries, IsMultiCountry, IsUSOnly |  YES - Planned locations |
-| **Eligibility** | IncludesChildren, IncludesAdults, AllGenders, AcceptsHealthyVolunteers |  YES - Eligibility criteria |
-| **Purpose** | IsTreatmentPurpose, IsPreventionPurpose |  YES - Study objective |
+| Feature Category | Features                                                                                                                           | Available at Registration?     |
+|------------------|------------------------------------------------------------------------------------------------------------------------------------|--------------------------------|
+| **Enrollment**   | EnrollmentCount, LogEnrollment, SmallTrial, LargeTrial                                                                             | YES - Planned enrollment       |
+| **Phase**        | IsPhase2, IsPhase3, IsPhase2And3                                                                                                   | YES - Declared at registration |
+| **Design**       | IsRandomized, IsDoubleBlind, IsBlinded, NumberOfArms, HasMultipleArms, NumArms_2, NumArms_3Plus, IsParallelAssignment, IsCrossover | YES - Study protocol           |
+| **Intervention** | IsDrugIntervention, IsBehavioralIntervention, IsDeviceIntervention, NumInterventions                                               | YES - Intervention plan        |
+| **Sponsor**      | IsIndustrySponsored, IsNIHSponsored, IsAcademicSponsored                                                                           | YES - Known at registration    |
+| **Geography**    | NumCountries, IsMultiCountry, IsUSOnly                                                                                             | YES - Planned locations        |
+| **Eligibility**  | IncludesChildren, IncludesAdults, AllGenders, AcceptsHealthyVolunteers                                                             | YES - Eligibility criteria     |
+| **Purpose**      | IsTreatmentPurpose, IsPreventionPurpose                                                                                            | YES - Study objective          |
 
 **Result**:  **All 32 features use information available at trial registration**
 
 ---
 
-### 4. Label Creation Verification 
+### 4. Label Creation Verification
 
 **Objective**: Ensure labels use only final outcomes of completed/failed trials.
 
 **Label Definition:**
+
 - **Success (1)**: OverallStatus = `COMPLETED`
 - **Failure (0)**: OverallStatus = `TERMINATED`, `WITHDRAWN`, or `SUSPENDED`
 
 **Excluded Statuses** (to prevent leakage from ongoing trials):
+
 - `RECRUITING`
 - `ACTIVE_NOT_RECRUITING`
 - `ENROLLING_BY_INVITATION`
@@ -120,6 +126,7 @@ A comprehensive audit was performed to ensure no data leakage in the ADHD clinic
 - `UNKNOWN`
 
 **Dataset Composition:**
+
 - Total labeled trials: 29
 - Successful: 26 (89.7%)
 - Failed: 3 (10.3%)
@@ -129,11 +136,12 @@ A comprehensive audit was performed to ensure no data leakage in the ADHD clinic
 
 ---
 
-### 5. Correlation Analysis 
+### 5. Correlation Analysis
 
 **Objective**: Detect suspiciously high correlations that might indicate leakage.
 
 **Top 5 Correlations with Outcome (Label):**
+
 1. LogEnrollment: 0.473
 2. IsTreatmentPurpose: 0.297
 3. IsPhase2: 0.262
@@ -145,17 +153,19 @@ A comprehensive audit was performed to ensure no data leakage in the ADHD clinic
 **Result**:  **No correlations exceed 0.8** - all correlations are moderate and explainable
 
 **Interpretation**:
+
 - Higher enrollment correlates with completion (larger trials have more resources)
 - Treatment trials differ from prevention trials
 - These are legitimate predictive relationships, not leakage
 
 ---
 
-### 6. Train/Test Split Verification 
+### 6. Train/Test Split Verification
 
 **Objective**: Ensure no information leaks between training and test sets.
 
 **Our Approach:**
+
 - Stratified 80/20 split
 - Random state fixed for reproducibility
 - No use of temporal ordering
@@ -168,7 +178,7 @@ A comprehensive audit was performed to ensure no data leakage in the ADHD clinic
 
 ## Critical Distinction: Planned vs. Actual
 
-###  SAFE: Planned/Target Information (Used)
+### SAFE: Planned/Target Information (Used)
 
 These are known **at trial registration**:
 
@@ -181,7 +191,7 @@ These are known **at trial registration**:
 - **Phase**: Phase 1, 2, 3, or combinations
 - **Purpose**: Treatment, prevention, diagnostic, etc.
 
-###  UNSAFE: Actual/Post-Trial Information (NOT Used)
+### UNSAFE: Actual/Post-Trial Information (NOT Used)
 
 These are known **only during or after the trial**:
 
@@ -203,6 +213,7 @@ These are known **only during or after the trial**:
 **Verify**: https://clinicaltrials.gov/study/NCT00506285
 
 **Pre-Trial Information Used (from registration):**
+
 - Planned Enrollment: 92
 - Phase: 3
 - Randomization: Randomized
@@ -211,10 +222,11 @@ These are known **only during or after the trial**:
 - Sponsor: Other (not industry/NIH)
 
 **Post-Trial Information NOT Used:**
--  Actual completion date
--  Whether trial completed successfully
--  Results or outcomes
--  Actual enrollment achieved
+
+- Actual completion date
+- Whether trial completed successfully
+- Results or outcomes
+- Actual enrollment achieved
 
 **Note**: We only use the trial status (COMPLETED) to create the label, not as a feature for prediction.
 
@@ -274,14 +286,14 @@ Try this yourself:
 1. Visit: https://clinicaltrials.gov/study/NCT00506285
 2. Click "Study Details" tab
 3. Check "Study Design" section - you'll see:
-   - Allocation: Randomized  (we use this)
-   - Intervention Model: Parallel Assignment  (we use this)
-   - Masking: Quadruple  (we use this)
-   - Primary Purpose: Treatment  (we use this)
+    - Allocation: Randomized  (we use this)
+    - Intervention Model: Parallel Assignment  (we use this)
+    - Masking: Quadruple  (we use this)
+    - Primary Purpose: Treatment  (we use this)
 4. Check "Enrollment" section:
-   - Shows "92" - this is PLANNED enrollment  (we use this)
+    - Shows "92" - this is PLANNED enrollment  (we use this)
 5. Check "Dates" section:
-   - Completion date is listed  (we do NOT use this)
+    - Completion date is listed  (we do NOT use this)
 
 ---
 
@@ -292,13 +304,13 @@ Try this yourself:
 While we've prevented direct leakage, some subtle correlations may exist:
 
 1. **Registration Completeness**: Trials that are more complete at registration might be better planned
-   - We checked: No feature measures completeness
+    - We checked: No feature measures completeness
 
 2. **Sponsor Track Record**: Industry sponsors might have historical success rates
-   - We use: Only sponsor CLASS (industry/NIH/academic), not specific sponsor identity
+    - We use: Only sponsor CLASS (industry/NIH/academic), not specific sponsor identity
 
 3. **Protocol Quality**: Better protocols might be more likely to complete
-   - This is VALID prediction, not leakage - protocol quality is the goal
+    - This is VALID prediction, not leakage - protocol quality is the goal
 
 ---
 
@@ -306,18 +318,21 @@ While we've prevented direct leakage, some subtle correlations may exist:
 
 ### Summary of Findings
 
- **No Direct Data Leakage**
+**No Direct Data Leakage**
+
 - All features use only pre-trial information
 - No temporal data (dates, durations)
 - No outcome-derived features
 - No ongoing trials in dataset
 
- **No Indirect Data Leakage**
+**No Indirect Data Leakage**
+
 - No suspiciously high correlations
 - Proper train/test split
 - No use of trial IDs or other identifiers
 
- **Valid Predictive Relationships**
+**Valid Predictive Relationships**
+
 - Enrollment size predicts completion (resource availability)
 - Study design quality predicts completion (better planning)
 - These are legitimate, not leakage
@@ -329,6 +344,7 @@ While we've prevented direct leakage, some subtle correlations may exist:
 ### For Academic Review
 
 This project follows best practices for preventing data leakage:
+
 - Clear temporal separation (only pre-trial info)
 - Documented feature sources
 - Independently verifiable data

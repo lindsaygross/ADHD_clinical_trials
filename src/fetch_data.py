@@ -9,17 +9,18 @@ import json
 import os
 import time
 from typing import Dict, List, Any
-import requests
-import pandas as pd
 
+import pandas as pd
+import requests
 
 # ClinicalTrials.gov API v2 endpoint
 API_BASE_URL = "https://clinicaltrials.gov/api/v2/studies"
 
+
 def fetch_adhd_trials(
-    max_results: int = 1000,
-    page_size: int = 100,
-    delay_seconds: float = 0.5
+        max_results: int = 1000,
+        page_size: int = 100,
+        delay_seconds: float = 0.5
 ) -> List[Dict[str, Any]]:
     """
     Fetch ADHD interventional trials from ClinicalTrials.gov API v2.
@@ -267,9 +268,9 @@ def save_data(trials: List[Dict[str, Any]], output_dir: str = "data/raw"):
     print(f"Saved filtered CSV to: {csv_path}")
 
     # Print summary statistics
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("DATA SUMMARY")
-    print("="*60)
+    print("=" * 60)
     print(f"Total trials (Phase 1/2/3): {len(df_filtered)}")
     print(f"\nStatus distribution:")
     print(df_filtered["OverallStatus"].value_counts())
@@ -283,9 +284,9 @@ def save_data(trials: List[Dict[str, Any]], output_dir: str = "data/raw"):
 
 def main():
     """Main execution function."""
-    print("="*60)
+    print("=" * 60)
     print("ADHD Clinical Trials Data Fetcher (Expanded)")
-    print("="*60)
+    print("=" * 60)
 
     # Fetch trials
     trials = fetch_adhd_trials(max_results=2000, page_size=100)
@@ -297,9 +298,9 @@ def main():
     # Save data
     df = save_data(trials)
 
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("Data fetching complete!")
-    print("="*60)
+    print("=" * 60)
 
 
 if __name__ == "__main__":

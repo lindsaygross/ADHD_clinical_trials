@@ -4,11 +4,14 @@ A machine learning pipeline that predicts the probability of clinical trial succ
 
 ## Project Overview
 
-This project builds an end-to-end pipeline to predict whether ADHD (Attention Deficit Hyperactivity Disorder) Phase 1, 2, and 3 interventional clinical trials will be **successfully completed** or **fail early** (terminated, withdrawn, or suspended).
+This project builds an end-to-end pipeline to predict whether ADHD (Attention Deficit Hyperactivity Disorder) Phase 1,
+2, and 3 interventional clinical trials will be **successfully completed** or **fail early** (terminated, withdrawn, or
+suspended).
 
 ### Objective
 
-Given the design and characteristics of an ADHD clinical trial at the time it starts, predict the probability that it will be **Completed** rather than **Terminated/Withdrawn/Suspended**.
+Given the design and characteristics of an ADHD clinical trial at the time it starts, predict the probability that it
+will be **Completed** rather than **Terminated/Withdrawn/Suspended**.
 
 ### Key Features
 
@@ -81,6 +84,7 @@ python -m src.fetch_data
 ```
 
 This will:
+
 - Query the ClinicalTrials.gov API for ADHD trials
 - Filter for Phase 1, 2, and 3 interventional studies
 - Save raw data to `data/raw/adhd_trials_raw.json` and `data/raw/adhd_trials_raw.csv`
@@ -95,6 +99,7 @@ python -m src.prepare_data
 ```
 
 This will:
+
 - Create binary labels (Success=1 for Completed, Failure=0 for Terminated/Withdrawn/Suspended)
 - Engineer features using only pre-trial information
 - Handle missing values
@@ -109,6 +114,7 @@ python -m src.train_models
 ```
 
 This will:
+
 - Split data into training and test sets
 - Train three models: Logistic Regression, Random Forest, Gradient Boosting
 - Evaluate models using multiple metrics (accuracy, precision, recall, F1, AUC)
@@ -136,36 +142,44 @@ jupyter notebook notebooks/01_eda_and_model.ipynb
 Features are derived from trial characteristics known **before or at the start** of the trial:
 
 **Enrollment Features:**
+
 - Enrollment count (raw and log-transformed)
 - Small trial (<50 participants) and large trial (≥200 participants) indicators
 
 **Phase Features:**
+
 - Phase 1, Phase 2, Phase 3, or combined Phase 2/3 indicators
 
 **Design Features:**
+
 - Randomization status
 - Blinding/masking type (double-blind, any blinding)
 - Number of arms (parallel, crossover)
 - Allocation method
 
 **Intervention Features:**
+
 - Intervention types (drug, behavioral, device)
 - Number of interventions
 
 **Sponsor Features:**
+
 - Sponsor class (industry, NIH, academic, other)
 
 **Geographic Features:**
+
 - Number of countries
 - Multi-country vs single-country
 - US-only trials
 
 **Eligibility Features:**
+
 - Age groups (children, adults)
 - Gender restrictions
 - Acceptance of healthy volunteers
 
 **Purpose Features:**
+
 - Primary purpose (treatment, prevention, etc.)
 
 ### Models
@@ -177,6 +191,7 @@ Three classification algorithms are trained and compared:
 3. **Gradient Boosting**: Advanced ensemble method
 
 All models use:
+
 - Stratified train-test split (80/20)
 - Class balancing to handle imbalanced data
 - Standard feature scaling
@@ -184,6 +199,7 @@ All models use:
 ### Evaluation Metrics
 
 Models are evaluated using:
+
 - **Accuracy**: Overall correctness
 - **Precision**: Proportion of predicted successes that were actual successes
 - **Recall**: Proportion of actual successes that were predicted
@@ -195,16 +211,16 @@ Models are evaluated using:
 After running the pipeline, you will find:
 
 1. **Model Performance Table**: `data/processed/model_performance.csv`
-   - Comparison of all models across metrics
+    - Comparison of all models across metrics
 
 2. **ROC Curves**: `data/processed/roc_curves.png`
-   - Visual comparison of model discrimination ability
+    - Visual comparison of model discrimination ability
 
 3. **Feature Importance Plots**: `data/processed/feature_importance_*.png`
-   - Most important predictors for tree-based models
+    - Most important predictors for tree-based models
 
 4. **Confusion Matrices**: `data/processed/confusion_matrix_*.png`
-   - Breakdown of correct and incorrect predictions
+    - Breakdown of correct and incorrect predictions
 
 ## Key Insights
 
@@ -226,6 +242,7 @@ The analysis typically reveals:
 ## Future Enhancements
 
 Potential improvements:
+
 - Incorporate text features from trial titles/descriptions using NLP
 - Add temporal features (year, duration)
 - Expand to other therapeutic areas for comparison
@@ -236,6 +253,7 @@ Potential improvements:
 ## Dependencies
 
 Core libraries:
+
 - `pandas`: Data manipulation
 - `numpy`: Numerical operations
 - `scikit-learn`: Machine learning
@@ -247,15 +265,14 @@ See `requirements.txt` for specific versions.
 
 ## Data Source
 
-All data is sourced from [ClinicalTrials.gov](https://clinicaltrials.gov/), a public registry of clinical studies maintained by the U.S. National Library of Medicine.
-
+All data is sourced from [ClinicalTrials.gov](https://clinicaltrials.gov/), a public registry of clinical studies
+maintained by the U.S. National Library of Medicine.
 
 1. **Visit ClinicalTrials.gov**: https://clinicaltrials.gov
 2. **Search for "ADHD" + "Interventional"**
 3. **Filter to Phase 1, 2 and 3**
 4. **Compare results** to our dataset
 5. **Verify individual trials** using NCT IDs we provide
-
 
 ## License
 
