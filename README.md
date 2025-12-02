@@ -4,7 +4,7 @@ A machine learning pipeline that predicts the probability of clinical trial succ
 
 ## Project Overview
 
-This project builds an end-to-end pipeline to predict whether ADHD (Attention Deficit Hyperactivity Disorder) Phase 2 and Phase 3 interventional clinical trials will be **successfully completed** or **fail early** (terminated, withdrawn, or suspended).
+This project builds an end-to-end pipeline to predict whether ADHD (Attention Deficit Hyperactivity Disorder) Phase 1, 2, and 3 interventional clinical trials will be **successfully completed** or **fail early** (terminated, withdrawn, or suspended).
 
 ### Objective
 
@@ -74,7 +74,7 @@ pip install -r requirements.txt
 
 ### Step 1: Fetch Data from ClinicalTrials.gov
 
-Retrieve ADHD Phase 2/3 interventional trials:
+Retrieve ADHD Phase 1/2/3 interventional trials:
 
 ```bash
 python -m src.fetch_data
@@ -82,7 +82,7 @@ python -m src.fetch_data
 
 This will:
 - Query the ClinicalTrials.gov API for ADHD trials
-- Filter for Phase 2 and Phase 3 interventional studies
+- Filter for Phase 1, 2, and 3 interventional studies
 - Save raw data to `data/raw/adhd_trials_raw.json` and `data/raw/adhd_trials_raw.csv`
 - Display summary statistics
 
@@ -140,7 +140,7 @@ Features are derived from trial characteristics known **before or at the start**
 - Small trial (<50 participants) and large trial (≥200 participants) indicators
 
 **Phase Features:**
-- Phase 2, Phase 3, or combined Phase 2/3 indicators
+- Phase 1, Phase 2, Phase 3, or combined Phase 2/3 indicators
 
 **Design Features:**
 - Randomization status
@@ -252,7 +252,7 @@ All data is sourced from [ClinicalTrials.gov](https://clinicaltrials.gov/), a pu
 
 1. **Visit ClinicalTrials.gov**: https://clinicaltrials.gov
 2. **Search for "ADHD" + "Interventional"**
-3. **Filter to Phase 2 and Phase 3**
+3. **Filter to Phase 1, 2 and 3**
 4. **Compare results** to our dataset
 5. **Verify individual trials** using NCT IDs we provide
 
