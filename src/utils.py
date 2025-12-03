@@ -5,11 +5,12 @@ This module contains helper functions for data analysis, visualization,
 and model interpretation.
 """
 
-import pandas as pd
-import numpy as np
-import matplotlib.pyplot as plt
-import seaborn as sns
 from typing import Dict, List, Any, Tuple
+
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+import seaborn as sns
 
 
 def get_data_summary(df: pd.DataFrame) -> pd.DataFrame:
@@ -38,9 +39,9 @@ def get_data_summary(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def plot_class_distribution(
-    df: pd.DataFrame,
-    label_col: str = "Label",
-    save_path: str = None
+        df: pd.DataFrame,
+        label_col: str = "Label",
+        save_path: str = None
 ) -> None:
     """
     Plot the distribution of class labels.
@@ -74,7 +75,7 @@ def plot_class_distribution(
     for i, v in enumerate(counts.values):
         pct = v / total * 100
         plt.text(i, v / 2, f"{pct:.1f}%", ha="center", va="center",
-                fontsize=11, color="white", fontweight="bold")
+                 fontsize=11, color="white", fontweight="bold")
 
     plt.grid(axis="y", alpha=0.3)
     plt.tight_layout()
@@ -87,11 +88,11 @@ def plot_class_distribution(
 
 
 def plot_feature_distributions(
-    df: pd.DataFrame,
-    feature_cols: List[str],
-    label_col: str = "Label",
-    save_path: str = None,
-    n_cols: int = 4
+        df: pd.DataFrame,
+        feature_cols: List[str],
+        label_col: str = "Label",
+        save_path: str = None,
+        n_cols: int = 4
 ) -> None:
     """
     Plot distributions of features by class.
@@ -149,10 +150,10 @@ def plot_feature_distributions(
 
 
 def plot_correlation_matrix(
-    df: pd.DataFrame,
-    feature_cols: List[str],
-    save_path: str = None,
-    figsize: Tuple[int, int] = (12, 10)
+        df: pd.DataFrame,
+        feature_cols: List[str],
+        save_path: str = None,
+        figsize: Tuple[int, int] = (12, 10)
 ) -> None:
     """
     Plot correlation matrix of features.
@@ -224,9 +225,9 @@ def analyze_missing_data(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def get_top_features_by_importance(
-    model: Any,
-    feature_names: List[str],
-    top_n: int = 10
+        model: Any,
+        feature_names: List[str],
+        top_n: int = 10
 ) -> pd.DataFrame:
     """
     Get top N most important features from a model.
@@ -260,9 +261,9 @@ def get_top_features_by_importance(
 
 
 def print_classification_summary(
-    y_true: np.ndarray,
-    y_pred: np.ndarray,
-    model_name: str = "Model"
+        y_true: np.ndarray,
+        y_pred: np.ndarray,
+        model_name: str = "Model"
 ) -> None:
     """
     Print a formatted classification summary.
@@ -278,9 +279,9 @@ def print_classification_summary(
     """
     from sklearn.metrics import classification_report
 
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"{model_name} - Classification Report")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
     print(classification_report(
         y_true,
         y_pred,
@@ -320,9 +321,9 @@ def calculate_baseline_metrics(y_true: np.ndarray) -> Dict[str, float]:
 
 
 def create_summary_table(
-    df: pd.DataFrame,
-    group_by: str,
-    label_col: str = "Label"
+        df: pd.DataFrame,
+        group_by: str,
+        label_col: str = "Label"
 ) -> pd.DataFrame:
     """
     Create a summary table grouped by a specific column.
@@ -368,9 +369,9 @@ def format_duration(seconds: float) -> str:
     if seconds < 60:
         return f"{seconds:.2f}s"
     elif seconds < 3600:
-        return f"{seconds/60:.2f}m"
+        return f"{seconds / 60:.2f}m"
     else:
-        return f"{seconds/3600:.2f}h"
+        return f"{seconds / 3600:.2f}h"
 
 
 def save_dataframe_summary(df: pd.DataFrame, save_path: str) -> None:
@@ -385,20 +386,20 @@ def save_dataframe_summary(df: pd.DataFrame, save_path: str) -> None:
         Path to save summary
     """
     with open(save_path, "w") as f:
-        f.write("="*60 + "\n")
+        f.write("=" * 60 + "\n")
         f.write("DATASET SUMMARY\n")
-        f.write("="*60 + "\n\n")
+        f.write("=" * 60 + "\n\n")
 
         f.write(f"Shape: {df.shape[0]} rows, {df.shape[1]} columns\n\n")
 
         f.write("Column Information:\n")
-        f.write("-"*60 + "\n")
+        f.write("-" * 60 + "\n")
         summary = get_data_summary(df)
         f.write(summary.to_string())
         f.write("\n\n")
 
         f.write("Descriptive Statistics:\n")
-        f.write("-"*60 + "\n")
+        f.write("-" * 60 + "\n")
         f.write(df.describe().to_string())
         f.write("\n\n")
 

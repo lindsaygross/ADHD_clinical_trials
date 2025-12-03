@@ -12,18 +12,20 @@ Strategy since the dataset is small:
      Sensitivity (Success accuracy) and Specificity (Failure accuracy).
 """
 
+import warnings
+
 import pandas as pd
-import numpy as np
+from sklearn.dummy import DummyClassifier
+from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import accuracy_score, confusion_matrix, balanced_accuracy_score
 from sklearn.model_selection import LeaveOneOut
 from sklearn.preprocessing import StandardScaler
-from sklearn.linear_model import LogisticRegression
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.metrics import accuracy_score, confusion_matrix, balanced_accuracy_score
 from sklearn.utils import resample
-import warnings
 
 # Suppress sklearn warnings
 warnings.filterwarnings("ignore", category=UserWarning, module="sklearn")
+
 
 def load_data():
     """Load processed data."""
@@ -41,6 +43,7 @@ def load_data():
     y = df['Label'].values
 
     return df, X, y, feature_cols
+
 
 def oversample_minority(X_train, y_train):
     """
@@ -72,8 +75,8 @@ def oversample_minority(X_train, y_train):
     # Upsample minority
     df_minority_upsampled = resample(
         df_minority,
-        replace=True,     # Sample with replacement
-        n_samples=n_samples, # Match majority class
+        replace=True,  # Sample with replacement
+        n_samples=n_samples,  # Match majority class
         random_state=42
     )
 
@@ -86,13 +89,14 @@ def oversample_minority(X_train, y_train):
 
     return X_upsampled, y_upsampled
 
+
 def test_loocv_with_oversampling():
     """
     Perform Leave-One-Out Cross-Validation with Oversampling.
     """
-    print("="*70)
+    print("=" * 70)
     print("1. LEAVE-ONE-OUT CROSS-VALIDATION (With Oversampling)")
-    print("="*70)
+    print("=" * 70)
     print("Strategy: Train on 35, Test on 1. Repeat 36 times.")
     print("Correction: Inside every training loop, we duplicate the Failures")
     print("            so the model sees 50/50 Success/Failure.\n")
@@ -104,10 +108,12 @@ def test_loocv_with_oversampling():
     X_scaled = pd.DataFrame(scaler.fit_transform(X), columns=X.columns)
 
     # Models
-    # Note: High regularization (C=0.1) for LogReg helps with small data
     models = {
+        'Baseline (Dummy)': DummyClassifier(strategy='most_frequent'),
         'Logistic Regression': LogisticRegression(random_state=42, C=0.5, solver='liblinear'),
-        'Random Forest': RandomForestClassifier(n_estimators=100, random_state=42, max_depth=5)
+        'Random Forest': RandomForestClassifier(n_estimators=100, random_state=42, max_depth=5),
+        'Gradient Boosting': GradientBoostingClassifier(n_estimators=50, learning_rate=0.05, max_depth=3, subsample=0.8,
+                                                        random_state=42)
     }
 
     loo = LeaveOneOut()
@@ -155,12 +161,16 @@ def test_loocv_with_oversampling():
             if tn > 0:
                 print(f"  >> SUCCESS: Model identified {tn} failures correctly!")
             else:
-                print(f"  >> WARNING: Model still missed all failures.")
+                if name != 'Baseline (Dummy)':
+                    print(f"  >> WARNING: Model still missed all failures.")
+                else:
+                    print(f"  >> INFO: Baseline naturally misses all failures.")
 
         except:
             print(f"  Confusion Matrix: \n{cm}")
 
-        if bal_acc > best_balanced_acc:
+        # Track best model (excluding dummy)
+        if name != 'Baseline (Dummy)' and bal_acc > best_balanced_acc:
             best_balanced_acc = bal_acc
             best_model_name = name
         print("-" * 30)
@@ -168,14 +178,15 @@ def test_loocv_with_oversampling():
     print(f"\nBEST MODEL: {best_model_name} (Balanced Acc: {best_balanced_acc:.1%})")
     return best_model_name
 
+
 def analyze_feature_importance_on_failures():
     """
     Since we only have 3 failures, let's look at them directly
     compared to the average success.
     """
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("2. FORENSIC ANALYSIS: WHY DID THEY FAIL?")
-    print("="*70)
+    print("=" * 70)
 
     df, X, y, feature_cols = load_data()
     if df is None: return
@@ -202,7 +213,6 @@ def analyze_feature_importance_on_failures():
 
     # 2. Look at the specific failure rows
     print("\n--- The Specific Failed Trials ---")
-    cols_to_show = ['NCTId', 'OverallStatus', 'EnrollmentCount', 'Phase', 'LeadSponsorClass']
 
     # Check if these columns exist in original df or need to be reconstructed from features
     # Simplification: Just print the ID and Status from the labeled df
@@ -212,18 +222,20 @@ def analyze_feature_importance_on_failures():
         # Print a few key traits
         print(f"  Enrollment: {row['EnrollmentCount']}")
 
+
 def main():
     """Run tests."""
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("ADHD SMALL DATA VALIDATION")
-    print("="*70)
+    print("=" * 70)
 
     best_model = test_loocv_with_oversampling()
     analyze_feature_importance_on_failures()
 
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("ANALYSIS COMPLETE")
-    print("="*70)
+    print("=" * 70)
+
 
 if __name__ == "__main__":
     main()

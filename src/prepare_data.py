@@ -10,9 +10,10 @@ This module:
 """
 
 import os
-import pandas as pd
-import numpy as np
 from typing import Tuple
+
+import numpy as np
+import pandas as pd
 
 
 def load_raw_data(file_path: str = "data/raw/adhd_trials_raw.csv") -> pd.DataFrame:
@@ -68,9 +69,9 @@ def create_binary_labels(df: pd.DataFrame) -> pd.DataFrame:
     df_labeled = df[df["Label"].notna()].copy()
     df_labeled["Label"] = df_labeled["Label"].astype(int)
 
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print("LABEL DISTRIBUTION")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
     print(f"Total labeled trials: {len(df_labeled)}")
     print(f"Successful (Completed): {(df_labeled['Label'] == 1).sum()} "
           f"({(df_labeled['Label'] == 1).sum() / len(df_labeled) * 100:.1f}%)")
@@ -104,9 +105,9 @@ def engineer_features(df: pd.DataFrame) -> pd.DataFrame:
     """
     df = df.copy()
 
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print("FEATURE ENGINEERING")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
 
     # --- Enrollment features ---
     df["EnrollmentCount"] = pd.to_numeric(df["EnrollmentCount"], errors="coerce")
@@ -182,8 +183,8 @@ def engineer_features(df: pd.DataFrame) -> pd.DataFrame:
         "Year|Month|Child", case=False, regex=True
     ).astype(int)
     df["IncludesAdults"] = (
-        df["MaximumAge"].fillna("").str.contains("Year", case=False, na=False) |
-        df["MaximumAge"].fillna("").str.contains("N/A|No Limit", case=False, na=False)
+            df["MaximumAge"].fillna("").str.contains("Year", case=False, na=False) |
+            df["MaximumAge"].fillna("").str.contains("N/A|No Limit", case=False, na=False)
     ).astype(int)
 
     # Gender
@@ -289,9 +290,9 @@ def select_modeling_features(df: pd.DataFrame) -> Tuple[pd.DataFrame, list]:
         if col in df_final.columns:
             df_final[col] = df_final[col].fillna(0)
 
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print("FINAL DATASET")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
     print(f"Total samples: {len(df_final)}")
     print(f"Total features: {len(feature_cols)}")
     print(f"Missing values per feature:")
@@ -322,9 +323,9 @@ def save_processed_data(df: pd.DataFrame, output_path: str = "data/processed/adh
 
 def main():
     """Main execution function."""
-    print("="*60)
+    print("=" * 60)
     print("ADHD Clinical Trials Data Preparation")
-    print("="*60)
+    print("=" * 60)
 
     # Load raw data
     df = load_raw_data()
@@ -341,9 +342,9 @@ def main():
     # Save processed data
     save_processed_data(df_final)
 
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("Data preparation complete!")
-    print("="*60)
+    print("=" * 60)
 
     return df_final, feature_cols
 
