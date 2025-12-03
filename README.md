@@ -21,28 +21,35 @@ will be **Completed** rather than **Terminated/Withdrawn/Suspended**.
 - Visualizations and interpretability analysis
 - Clean, modular, and reusable code
 
+See [FEATURE_EXPLANATION.md](FEATURE_EXPLANATION.md) for a detailed description of all features and terminology used in
+this project.
+
 ## Project Structure
 
 ```
 ADHD_clinical_trials/
- data/
-    raw/                      # Raw data from API
-       adhd_trials_raw.json
-       adhd_trials_raw.csv
-    processed/                # Processed and labeled data
-        adhd_trials_labeled.csv
-        model_performance.csv
-        roc_curves.png
-        feature_importance_*.png
- src/
-    fetch_data.py            # Data collection from ClinicalTrials.gov
-    prepare_data.py          # Data preprocessing and feature engineering
-    train_models.py          # Model training and evaluation
-    utils.py                 # Utility functions
- notebooks/
-    01_eda_and_model.ipynb  # Exploratory analysis and modeling
- requirements.txt             # Python dependencies
- README.md                    # This file
+ ├── run_pipeline.py          # Main script to run the full pipeline
+ ├── test_model.py            # Validation and failure analysis script
+ ├── FEATURE_EXPLANATION.md   # Detailed feature documentation
+ ├── requirements.txt         # Python dependencies
+ ├── README.md                # This file
+ ├── data/
+ │   ├── raw/                 # Raw data from API
+ │   │   ├── adhd_trials_raw.json
+ │   │   └── adhd_trials_raw.csv
+ │   └── processed/           # Processed and labeled data
+ │       ├── adhd_trials_labeled.csv
+ │       ├── model_performance.csv
+ │       ├── feature_names.json
+ │       ├── roc_curves.png
+ │       └── feature_importance_*.png
+ ├── src/
+ │   ├── fetch_data.py        # Data collection from ClinicalTrials.gov
+ │   ├── prepare_data.py      # Data preprocessing and feature engineering
+ │   ├── train_models.py      # Model training and evaluation
+ │   └── utils.py             # Utility functions
+ └── notebooks/
+     └── 01_eda_and_model.ipynb  # Exploratory analysis and modeling
 ```
 
 ## Installation
@@ -75,59 +82,73 @@ pip install -r requirements.txt
 
 ## Usage
 
-### Step 1: Fetch Data from ClinicalTrials.gov
+### Quick Start (Recommended)
 
-Retrieve ADHD Phase 1/2/3 interventional trials:
+Run the entire end-to-end pipeline with a single command:
+
+```bash
+python run_pipeline.py
+```
+
+This script will sequentially:
+
+1. **Fetch data**: Download fresh data from ClinicalTrials.gov.
+2. **Prepare data**: Process raw JSON/CSV into a labeled dataset for ML.
+3. **Train models**: Train Logistic Regression, Random Forest, and Gradient Boosting models.
+4. **Evaluate**: Generate performance metrics and visualizations in `data/processed/`.
+
+### Manual Execution (Step-by-Step)
+
+If you prefer to run each step individually:
+
+#### Step 1: Fetch Data from ClinicalTrials.gov
+
+Retrieve ADHD Phase 1, 2, and 3 interventional trials:
 
 ```bash
 python -m src.fetch_data
 ```
 
-This will:
+This will save raw data to `data/raw/adhd_trials_raw.json` and `data/raw/adhd_trials_raw.csv`.
 
-- Query the ClinicalTrials.gov API for ADHD trials
-- Filter for Phase 1, 2, and 3 interventional studies
-- Save raw data to `data/raw/adhd_trials_raw.json` and `data/raw/adhd_trials_raw.csv`
-- Display summary statistics
+#### Step 2: Prepare and Label Data
 
-### Step 2: Prepare and Label Data
-
-Process raw data and create labeled dataset:
+Process raw data and create the labeled dataset:
 
 ```bash
 python -m src.prepare_data
 ```
 
-This will:
+This engineers features and saves the result to `data/processed/adhd_trials_labeled.csv`.
 
-- Create binary labels (Success=1 for Completed, Failure=0 for Terminated/Withdrawn/Suspended)
-- Engineer features using only pre-trial information
-- Handle missing values
-- Save processed data to `data/processed/adhd_trials_labeled.csv`
+#### Step 3: Train and Evaluate Models
 
-### Step 3: Train and Evaluate Models
-
-Train multiple ML models and compare performance:
+Train models and generate results:
 
 ```bash
 python -m src.train_models
 ```
 
-This will:
-
-- Split data into training and test sets
-- Train three models: Logistic Regression, Random Forest, Gradient Boosting
-- Evaluate models using multiple metrics (accuracy, precision, recall, F1, AUC)
-- Generate visualizations (ROC curves, feature importance, confusion matrices)
-- Save results to `data/processed/`
-
-### Step 4: Explore with Jupyter Notebook
+#### Step 4: Explore with Jupyter Notebook
 
 For interactive analysis:
 
 ```bash
 jupyter notebook notebooks/01_eda_and_model.ipynb
 ```
+
+### Validation and Forensic Analysis
+
+To perform a deeper validation and specifically analyze the failed trials (which are rare in this dataset), use the test script:
+
+```bash
+python test_model.py
+```
+
+This script provides:
+1.  **Detailed LOOCV Report**: A granular breakdown of model performance including confusion matrices.
+2.  **Forensic Analysis**: A comparison of feature means between "Success" and "Failure" groups to identify exactly which characteristics distinguish the failed trials.
+3.  **Failure Inspection**: Detailed printouts of the specific trials that failed, helping you understand the ground truth data.
 
 ## Methodology
 
@@ -192,15 +213,16 @@ Three classification algorithms are trained and compared:
 
 All models use:
 
-- Stratified train-test split (80/20)
-- Class balancing to handle imbalanced data
-- Standard feature scaling
+- **Leave-One-Out Cross-Validation (LOOCV)**: To maximize the training data for each prediction.
+- **Minority Oversampling**: Applied within each cross-validation fold to handle class imbalance.
+- **Standard Feature Scaling**: Applied within each fold to prevent data leakage.
 
 ### Evaluation Metrics
 
 Models are evaluated using:
 
 - **Accuracy**: Overall correctness
+- **Balanced Accuracy**: Arithmetic mean of sensitivity and specificity (crucial for imbalanced data)
 - **Precision**: Proportion of predicted successes that were actual successes
 - **Recall**: Proportion of actual successes that were predicted
 - **F1 Score**: Harmonic mean of precision and recall
@@ -217,10 +239,7 @@ After running the pipeline, you will find:
     - Visual comparison of model discrimination ability
 
 3. **Feature Importance Plots**: `data/processed/feature_importance_*.png`
-    - Most important predictors for tree-based models
-
-4. **Confusion Matrices**: `data/processed/confusion_matrix_*.png`
-    - Breakdown of correct and incorrect predictions
+    - Most important predictors for tree-based models and Logistic Regression (coefficients)
 
 ## Key Insights
 
@@ -234,7 +253,7 @@ The analysis typically reveals:
 ## Limitations and Considerations
 
 1. **Class Imbalance**: Most trials are completed successfully, creating an imbalanced dataset
-2. **Limited Sample Size**: Focus on ADHD Phase 2/3 trials restricts the dataset
+2. **Limited Sample Size**: Focus on ADHD interventional trials restricts the dataset size
 3. **Missing Data**: Some trials have incomplete information on design features
 4. **Temporal Bias**: Recent trials may still be ongoing (excluded from analysis)
 5. **External Validity**: Results specific to ADHD trials may not generalize to other conditions
@@ -274,16 +293,14 @@ maintained by the U.S. National Library of Medicine.
 4. **Compare results** to our dataset
 5. **Verify individual trials** using NCT IDs we provide
 
-## License
-
-This project is for educational purposes as part of a Machine Learning course.
-
-## Author
-
-Lindsay Gross
-AIPI 520 - Machine Learning Course Project
-
 ## Acknowledgments
 
 - ClinicalTrials.gov for providing open access to clinical trial data
 - Scikit-learn community for excellent ML tools and documentation
+
+## AI Citation
+
+Gemini was used on December 3, 2025, to aid in updating the documentation on GitHub for the project. Gemini was also
+consulted to assist on methodologies and ideas for how to handle the extreme class imbalance.
+
+Claude Code was used on November 22, 2025, to generate the initial scaffolding for the project.
