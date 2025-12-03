@@ -4,6 +4,7 @@ Train and evaluate machine learning models for ADHD trial success prediction.
 - Uses Leave-One-Out Cross-Validation (LOOCV) for robust metrics.
 - Uses Manual Oversampling inside the CV loop to handle class imbalance.
 - Generates performance reports and visualizations based on LOOCV results.
+- Extracts Feature Importance for ALL models (Coefficients for LR, Impurity for Trees).
 """
 
 import json
@@ -205,44 +206,66 @@ def plot_roc_curves_loocv(
     plt.close()
 
 
-def generate_feature_importance(
+def generate_all_feature_importances(
         X: pd.DataFrame,
         y: np.ndarray,
         feature_names: list,
-        save_path: str = "data/processed/feature_importance.png"
+        save_dir: str = "data/processed"
 ):
     """
-    Train a Random Forest on FULL data just to extract feature importance.
-    (We can't average feature importance easily across 36 LOOCV models,
-    so a full-data fit is the standard proxy for inspection).
+    Train all models on the dataset to extract feature importance.
+    - Trees: Uses feature_importances_
+    - Logistic Regression: Uses abs(coefficients)
     """
-    print("\nGenerating Feature Importance Plot (using full dataset fit)...")
+    print("\nGenerating Feature Importance Plots (using full dataset fit)...")
+    os.makedirs(save_dir, exist_ok=True)
 
-    # Scale and Oversample
+    # Scale and Oversample (Pre-processing must match training loop)
     scaler = StandardScaler()
     X_scaled = pd.DataFrame(scaler.fit_transform(X), columns=X.columns)
     X_res, y_res = oversample_minority(X_scaled, y)
 
-    # Fit RF
-    rf = RandomForestClassifier(n_estimators=100, max_depth=5, random_state=42)
-    rf.fit(X_res, y_res)
+    # Define same models as in evaluation
+    models = {
+        "Logistic_Regression": LogisticRegression(random_state=42, C=0.5, solver='liblinear'),
+        "Random_Forest": RandomForestClassifier(n_estimators=100, max_depth=5, random_state=42),
+        "Gradient_Boosting": GradientBoostingClassifier(n_estimators=50, learning_rate=0.05, max_depth=3, subsample=0.8,
+                                                        random_state=42)
+    }
 
-    # Plot
-    importances = rf.feature_importances_
-    indices = np.argsort(importances)[::-1][:20]
+    for model_name, model in models.items():
+        model.fit(X_res, y_res)
 
-    plt.figure(figsize=(10, 8))
-    plt.barh(range(20), importances[indices], align="center", color="steelblue", alpha=0.8)
-    plt.yticks(range(20), [feature_names[i] for i in indices])
-    plt.xlabel("Importance")
-    plt.title("Top 20 Feature Importances (Random Forest)", fontsize=14, fontweight="bold")
-    plt.gca().invert_yaxis()
-    plt.tight_layout()
+        # Extract Importances
+        if hasattr(model, "feature_importances_"):
+            # Tree-based
+            importances = model.feature_importances_
+            metric_label = "Importance (Gini Impurity)"
+        elif hasattr(model, "coef_"):
+            # Linear Models - Take absolute value of coefficients
+            importances = np.abs(model.coef_[0])
+            metric_label = "Importance (Abs Coefficient)"
+        else:
+            print(f"Skipping {model_name}: No importance attribute found.")
+            continue
 
-    os.makedirs(os.path.dirname(save_path), exist_ok=True)
-    plt.savefig(save_path, dpi=300)
-    print(f"Feature importance plot saved to: {save_path}")
-    plt.close()
+        # Sort and Plot Top 20
+        indices = np.argsort(importances)[::-1][:20]
+
+        plt.figure(figsize=(10, 8))
+        plt.barh(range(len(indices)), importances[indices], align="center", color="steelblue", alpha=0.8)
+        plt.yticks(range(len(indices)), [feature_names[i] for i in indices])
+        plt.xlabel(metric_label)
+        plt.title(f"Top 20 Features: {model_name.replace('_', ' ')}", fontsize=14, fontweight="bold")
+        plt.gca().invert_yaxis()
+        plt.tight_layout()
+
+        # Save specific file
+        filename = f"feature_importance_{model_name.lower()}.png"
+        full_path = os.path.join(save_dir, filename)
+        plt.savefig(full_path, dpi=300)
+        print(f"Saved: {full_path}")
+        plt.close()
 
 
 def save_results(results_df: pd.DataFrame, feature_names: list, save_dir: str = "data/processed"):
@@ -278,7 +301,9 @@ def main():
 
     # Generate Visualizations
     plot_roc_curves_loocv(model_predictions)
-    generate_feature_importance(X, y, feature_cols)
+
+    # Generate Feature Importance for models
+    generate_all_feature_importances(X, y, feature_cols)
 
     # Save Results
     save_results(results_df, feature_cols)
